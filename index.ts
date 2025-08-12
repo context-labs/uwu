@@ -80,4 +80,26 @@ const response = await openai.chat.completions.create({
   ],
 });
 
-console.log(response?.choices[0]?.message?.content?.trim());
+const command = response?.choices[0]?.message?.content?.trim();
+
+if (command) {
+  console.log(`\nSuggested command:\n  \x1b[32m${command}\x1b[0m\n`);
+  process.stdout.write("Execute this command? (y/n) ");
+
+  for await (const line of console) {
+    const answer = line.trim().toLowerCase();
+    if (answer === 'y' || answer === 'yes') {
+      try {
+        await $`${{ raw: command }}`;
+      } catch (error) {
+        console.error("Error executing command:", error);
+      }
+    } else {
+      console.log("Command execution aborted.");
+    }
+    process.exit(0);
+  }
+} else {
+    console.error("Could not generate a command.");
+    process.exit(1);
+}
