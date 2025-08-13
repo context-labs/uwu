@@ -1,0 +1,8 @@
+{
+  "type": "LlamaCpp",
+  "model": "smollm3-3b",
+  "contextSize": 4096,
+  "temperature": 0.7,
+  "maxTokens": 512,
+  "threads": 6
+}

@@ -1,0 +1,13 @@
+# LlamaCpp models - auto-detect path
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"LlamaCpp","model":"tinyllama-1.1b","contextSize":2048,"temperature":0.1,"maxTokens":150,"port":8080}' > "$CONFIG_PATH" && echo "✅ Set to TinyLlama-1.1B"
+
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"LlamaCpp","model":"gemma-3-4b","contextSize":2048,"temperature":0.1,"maxTokens":150,"port":8080}' > "$CONFIG_PATH" && echo "✅ Set to Gemma-3-4B"
+
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"LlamaCpp","model":"smollm3-3b","contextSize":2048,"temperature":0.1,"maxTokens":150,"port":8080}' > "$CONFIG_PATH" && echo "✅ Set to SmolLM3-3B"
+
+# Other providers - auto-detect path
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"OpenAI","model":"gpt-4"}' > "$CONFIG_PATH" && echo "✅ Set to OpenAI GPT-4"
+
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"Claude","model":"claude-3-5-sonnet-20241022"}' > "$CONFIG_PATH" && echo "✅ Set to Claude 3.5 Sonnet"
+
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") && mkdir -p "$(dirname "$CONFIG_PATH")" && echo '{"type":"Gemini","model":"gemini-1.5-pro"}' > "$CONFIG_PATH" && echo "✅ Set to Gemini 1.5 Pro"

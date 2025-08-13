@@ -1,0 +1,13 @@
+{
+    "type": "LlamaCpp",
+    "model": "unsloth/gemma-3-4b-it-GGUF",
+    "contextSize": 4096,
+    "temperature": 0.5,
+    "maxTokens": 256,
+    "threads": 8,
+    "enableMultiAgent": true,
+    "agentCount": 4,
+    "apiKey": null,
+    "baseURL": null,
+    "modelPath": null
+  }
