@@ -1,0 +1,8 @@
+{
+    "type": "LlamaCpp",
+    "model": "tinyllama-1.1b",
+    "contextSize": 2048,
+    "temperature": 0.7,
+    "maxTokens": 256,
+    "threads": 4
+  }

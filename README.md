@@ -134,9 +134,11 @@ This type is for any other OpenAI-compatible API endpoint, such as Ollama, LM St
 ### 5. Add the `uwu` helper function to your `~/.zshrc`
 This function lets you type `uwu <description>` and get an editable command preloaded in your shell.
 
+
 ```zsh
 # ~/.zshrc
-
+```
+```bash
 uwu() {
   local cmd
   cmd="$(uwu-cli "$@")" || return
@@ -147,9 +149,49 @@ uwu() {
 ```
 
 After editing `~/.zshrc`, reload it:
+
+## Running with `llama.cpp` for Local Hosting (Small Models: Gemma-3-4B, SmolLM3-3B-GGUF)
+
+### 1. Configure `uwu` to use `llama.cpp`
 ```bash
-source ~/.zshrc
+CONFIG_PATH=$(bun -e "import envPaths from 'env-paths'; import path from 'path'; const paths = envPaths('uwu', {suffix: ''}); console.log(path.join(paths.config, 'config.json'));") \
+&& mkdir -p "$(dirname "$CONFIG_PATH")" \
+&& echo '{"type":"LlamaCpp","model":"gemma-3-4b","contextSize":2048,"temperature":0.1,"maxTokens":150,"port":8080}' > "$CONFIG_PATH" \
+&& echo "Configuration set for Gemma-3-4B"
 ```
+You can put more options in llama_cpp.md. 
+
+## 2. Update ~/.zshrc to Add Helper Functions
+### 2.1 For running llama-cpp to generate and execute function
+```bash
+uwu() {
+  local cmd
+  cmd="$(dist/uwu-cli "$@")" || return
+  echo "Generated: $cmd"
+  vared -p "Execute: " -c cmd
+  print -s -- "$cmd"
+  eval "$cmd"
+}
+```
+#### 2.1.  Stop the llama.cpp server
+```bash
+uwu_stop() {
+  pkill llama-server && echo "Llama server stopped"
+}
+```
+#### 2.2. Direct execution without editing (Not recommended)
+```bash
+uwu_direct() {
+  local cmd
+  cmd="$(dist/uwu-cli "$@")" || return
+  echo "Executing: $cmd"
+  eval "$cmd"
+}
+```
+
+⸻
+
+📄 For more details, see llama_cpp.md.
 
 ## Usage
 
@@ -161,6 +203,16 @@ uwu generate a new ssh key called uwu-keyand add it to the ssh agent
 
 You'll see the generated command in your shell's input line. Press **Enter** to run it, or edit it first. Executed commands will show up in your shell's history just like any other command.
 
+with llama.cpp
+
+# Interactive mode with editing
+```bash 
+uwu generate a new ssh key called uwu-keyand add it to the ssh agent
+```
+# kill llama.cpp if you are not using it anymore to stop
+```bash 
+uwu_stop
+```
 ## License
 
 [MIT](LICENSE)
