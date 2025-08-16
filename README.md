@@ -76,7 +76,7 @@ The `config.json` file is located in a standard, platform-specific directory:
 *   **Windows:** `%APPDATA%\\uwu\\config.json` (e.g., `C:\\Users\\<user>\\AppData\\Roaming\\uwu\\config.json`)
 
 #### Provider Types
-You can configure `uwu` to use different AI providers by setting the `type` field in your `config.json`. The supported types are `"OpenAI"`, `"Custom"`, `"Claude"`, and `"Gemini"`.
+You can configure `uwu` to use different AI providers by setting the `type` field in your `config.json`. The supported types are `"OpenAI"`, `"Custom"`, `"Claude"`, `"Gemini"`, and `"GitHub"`.
 
 Below are examples for each provider type.
 
@@ -117,7 +117,18 @@ Uses the native Google Gemini API.
 *   `apiKey`: Your Google AI Studio API key.
 
 ---
-##### **4. Custom / Local Models (`type: "Custom"`)**
+##### **4. GitHub (`type: "GitHub"`)**
+Uses multiple free to use GitHub models.
+```json
+{
+  "type": "GitHub",
+  "apiKey": "your-github-token",
+  "model": "openai/gpt-4.1-nano"
+}
+```
+*   `apiKey`: Your GitHub token.
+---
+##### **5. Custom / Local Models (`type: "Custom"`)**
 This type is for any other OpenAI-compatible API endpoint, such as Ollama, LM Studio, or a third-party proxy service.
 ```json
 {

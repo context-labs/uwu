@@ -1,13 +1,15 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
+import { AzureKeyCredential } from '@azure/core-auth';
 import { $ } from "bun";
 import os from "os";
 import fs from "fs";
 import path from "path";
 import envPaths from "env-paths";
 
-type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini";
+type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "GitHub";
 
 interface Config {
   type: ProviderType;
@@ -205,6 +207,34 @@ ${lsResult}
       const response = await result.response;
       const raw = await response.text();
       return sanitizeResponse(String(raw));
+    }
+
+    case "GitHub": {
+      const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
+      const model = config.model ? config.model : "openai/gpt-4.1-nano";
+      const github = ModelClient(
+        endpoint,
+        new AzureKeyCredential(config.apiKey)
+      );
+
+      const response = await github.path("/chat/completions").post({
+        body: {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Command description: ${commandDescription}` },
+          ],
+          temperature: 1.0,
+          top_p: 1.0,
+          model: model,
+        },
+      });
+
+      if (isUnexpected(response)) {
+        throw response.body.error;
+      }
+
+      const content = response.body.choices?.[0]?.message?.content;
+      return content?.trim() || "";
     }
 
     default:
