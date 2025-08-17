@@ -1,11 +1,13 @@
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { $ } from "bun";
 import os from "os";
 import fs from "fs";
 import path from "path";
 import envPaths from "env-paths";
+import { DEFAULT_CONTEXT_CONFIG, buildContextHistory } from "./context";
+import type { ContextConfig } from "./context";
 
 type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "LlamaCpp";
 
@@ -19,18 +21,12 @@ interface Config {
   apiKey?: string;
   model: string;
   baseURL?: string;
-  // LlamaCpp specific options
-  modelPath?: string;
-  contextSize?: number;
-  temperature?: number;
-  maxTokens?: number;
-  threads?: number;
-  port?: number;
 }
 
 const DEFAULT_CONFIG: Config = {
   type: "OpenAI",
   model: "gpt-4.1",
+  context: DEFAULT_CONTEXT_CONFIG,
 };
 
 // Global server management
@@ -179,7 +175,7 @@ class LlamaCppServerManager {
 }
 
 function getConfig(): Config {
-  const paths = envPaths('uwu', { suffix: '' });
+  const paths = envPaths("uwu", { suffix: "" });
   const configPath = path.join(paths.config, "config.json");
 
   if (!fs.existsSync(configPath)) {
@@ -210,13 +206,29 @@ function getConfig(): Config {
     const rawConfig = fs.readFileSync(configPath, "utf-8");
     const userConfig = JSON.parse(rawConfig);
 
+    // Merge user config with defaults, and also check env for API key as a fallback.
     return {
       ...DEFAULT_CONFIG,
       ...userConfig,
       apiKey: userConfig.apiKey || process.env.OPENAI_API_KEY,
     };
+
+    // Ensure context config has all defaults filled in
+    if (mergedConfig.context) {
+      mergedConfig.context = {
+        ...DEFAULT_CONTEXT_CONFIG,
+        ...mergedConfig.context,
+      };
+    } else {
+      mergedConfig.context = DEFAULT_CONTEXT_CONFIG;
+    }
+
+    return mergedConfig;
   } catch (error) {
-    console.error("Error reading or parsing the configuration file at:", configPath);
+    console.error(
+      "Error reading or parsing the configuration file at:",
+      configPath
+    );
     console.error("Please ensure it is a valid JSON file.");
     process.exit(1);
   }
@@ -224,6 +236,7 @@ function getConfig(): Config {
 
 const config = getConfig();
 
+// The rest of the arguments are the command description
 const commandDescription = process.argv.slice(2).join(' ').trim();
 
 if (!commandDescription) {
@@ -233,6 +246,7 @@ if (!commandDescription) {
 }
 
 async function generateCommand(config: Config, commandDescription: string): Promise<string> {
+  // Build the environment context
   const envContext = `
 Operating System: ${os.type()} ${os.release()} (${os.platform()} - ${os.arch()})
 Node.js Version: ${process.version}
@@ -244,12 +258,17 @@ Total Memory: ${(os.totalmem() / 1024 / 1024).toFixed(0)} MB
 Free Memory: ${(os.freemem() / 1024 / 1024).toFixed(0)} MB
 `;
 
+  // Get `ls -l` output (handle potential errors)
   let lsResult = "";
   try {
-    lsResult = await $`ls -la`.text();
+    lsResult = await $`ls`.text();
   } catch (error) {
     lsResult = "Unable to get directory listing";
   }
+
+  // Build command history context if enabled
+  const contextConfig = config.context || DEFAULT_CONTEXT_CONFIG;
+  const historyContext = buildContextHistory(contextConfig);
 
   const systemPrompt = `
 You are a shell command generator. Convert natural language into precise shell commands.
@@ -266,16 +285,13 @@ ${envContext}
 
 Current directory contents:
 ${lsResult}
-`;
+${historyContext}`;
 
-  switch (config.type) {
-    case "OpenAI":
-    case "Custom": {
-      if (!config.apiKey) {
-        console.error("Error: API key not found.");
-        console.error("Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable.");
-        process.exit(1);
-      }
+  if (!config.apiKey) {
+    console.error("Error: API key not found.");
+    console.error("Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable.");
+    process.exit(1);
+  }
 
       const openai = new OpenAI({
         apiKey: config.apiKey,
@@ -285,10 +301,11 @@ ${lsResult}
         model: config.model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: commandDescription },
+          { role: "user", content: `Command description: ${commandDescription}` },
         ],
       });
-      return response?.choices[0]?.message?.content?.trim() || "";
+      const raw = response?.choices?.[0]?.message?.content ?? "";
+      return sanitizeResponse(String(raw));
     }
 
     case "Claude": {
@@ -304,11 +321,15 @@ ${lsResult}
         system: systemPrompt,
         max_tokens: 1024,
         messages: [
-          { role: "user", content: commandDescription },
+          { role: "user", content: `Command description: ${commandDescription}` },
         ],
       });
       // @ts-ignore
-      return response.content[0]?.text.trim() || "";
+      const raw =
+        response.content && response.content[0]
+          ? response.content[0].text
+          : response?.text ?? "";
+      return sanitizeResponse(String(raw));
     }
 
     case "Gemini": {
@@ -323,7 +344,8 @@ ${lsResult}
       const prompt = `${systemPrompt}\n\nCommand description: ${commandDescription}`;
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      return response.text().trim();
+      const raw = await response.text();
+      return sanitizeResponse(String(raw));
     }
 
     case "LlamaCpp": {
@@ -339,7 +361,9 @@ ${lsResult}
     }
 
     default:
-      console.error(`Error: Unknown provider type "${config.type}" in config.json.`);
+      console.error(
+        `Error: Unknown provider type "${config.type}" in config.json.`
+      );
       process.exit(1);
   }
 }

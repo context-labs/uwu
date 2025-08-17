@@ -1,0 +1,9 @@
+{
+  "type": "OpenAI",
+  "apiKey": "",
+  "model": "gpt-4",
+  "context": {
+    "enabled": true,
+    "maxHistoryCommands": 10
+  }
+}
