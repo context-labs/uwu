@@ -1,6 +1,8 @@
-import OpenAI from "openai";
-import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
+import { AzureKeyCredential } from '@azure/core-auth';
 import { $ } from "bun";
 import os from "os";
 import fs from "fs";
@@ -9,8 +11,10 @@ import envPaths from "env-paths";
 import { DEFAULT_CONTEXT_CONFIG, buildContextHistory } from "./context";
 import type { ContextConfig } from "./context";
 
-type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "LlamaCpp";
+// CONFLICT RESOLVED: Combined all provider types (GitHub from main + LlamaCpp from feature)
+type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "GitHub" | "LlamaCpp";
 
+// CONFLICT RESOLVED: Added Message interface from feature branch (needed for LlamaCpp)
 interface Message {
   role: "system" | "user" | "assistant";
   content: string;
@@ -21,6 +25,15 @@ interface Config {
   apiKey?: string;
   model: string;
   baseURL?: string;
+  // CONFLICT RESOLVED: Combined both context config AND LlamaCpp options
+  context?: ContextConfig;
+  // LlamaCpp specific options
+  modelPath?: string;
+  contextSize?: number;
+  temperature?: number;
+  maxTokens?: number;
+  threads?: number;
+  port?: number;
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -206,8 +219,8 @@ function getConfig(): Config {
     const rawConfig = fs.readFileSync(configPath, "utf-8");
     const userConfig = JSON.parse(rawConfig);
 
-    // Merge user config with defaults, and also check env for API key as a fallback.
-    return {
+    // CONFLICT RESOLVED: Used main's improved merging logic with mergedConfig variable
+    const mergedConfig = {
       ...DEFAULT_CONFIG,
       ...userConfig,
       apiKey: userConfig.apiKey || process.env.OPENAI_API_KEY,
@@ -236,8 +249,8 @@ function getConfig(): Config {
 
 const config = getConfig();
 
-// The rest of the arguments are the command description
-const commandDescription = process.argv.slice(2).join(' ').trim();
+// CONFLICT RESOLVED: Used main's version with double quotes and comment
+const commandDescription = process.argv.slice(2).join(" ").trim();
 
 if (!commandDescription) {
   console.error("Error: No command description provided.");
@@ -245,8 +258,52 @@ if (!commandDescription) {
   process.exit(1);
 }
 
-async function generateCommand(config: Config, commandDescription: string): Promise<string> {
-  // Build the environment context
+// CONFLICT RESOLVED: Added main's sanitizeResponse function that was missing in feature branch
+function sanitizeResponse(content: string): string {
+  if (!content) return "";
+
+  content = content.replace(
+    /<\s*think\b[^>]*>[\s\S]*?<\s*\/\s*think\s*>/gi,
+    ""
+  );
+
+  let lastCodeBlock: string | null = null;
+  const codeBlockRegex = /```(?:[^\n]*)\n([\s\S]*?)```/g;
+  let m;
+  while ((m = codeBlockRegex.exec(content)) !== null) {
+    lastCodeBlock = m[1];
+  }
+  if (lastCodeBlock) {
+    content = lastCodeBlock;
+  } else {
+    content = content.replace(/`/g, "");
+  }
+
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return "";
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+
+    const looksLikeSentence =
+      /^[A-Z][\s\S]*[.?!]$/.test(line) ||
+      /\b(user|want|should|shouldn't|think|explain|error|note)\b/i.test(line);
+    if (!looksLikeSentence && line.length <= 2000) {
+      return line.trim();
+    }
+  }
+
+  return lines[lines.length - 1].trim();
+}
+
+// CONFLICT RESOLVED: Used main's function signature formatting
+async function generateCommand(
+  config: Config,
+  commandDescription: string
+): Promise<string> {
   const envContext = `
 Operating System: ${os.type()} ${os.release()} (${os.platform()} - ${os.arch()})
 Node.js Version: ${process.version}
@@ -258,40 +315,50 @@ Total Memory: ${(os.totalmem() / 1024 / 1024).toFixed(0)} MB
 Free Memory: ${(os.freemem() / 1024 / 1024).toFixed(0)} MB
 `;
 
-  // Get `ls -l` output (handle potential errors)
+  // CONFLICT RESOLVED: Used main's cross-platform directory listing instead of just `ls -la`
   let lsResult = "";
+  let lsCommand = "";
   try {
-    lsResult = await $`ls`.text();
+    if (process.platform === "win32") {
+      // Use PowerShell-compatible dir for a simple listing
+      lsCommand = "dir /b";
+      lsResult = await $`cmd /c ${lsCommand}`.text();
+    } else {
+      lsCommand = "ls";
+      lsResult = await $`${lsCommand}`.text();
+    }
   } catch (error) {
     lsResult = "Unable to get directory listing";
   }
 
-  // Build command history context if enabled
+  // CONFLICT RESOLVED: Added main's context history feature
   const contextConfig = config.context || DEFAULT_CONTEXT_CONFIG;
   const historyContext = buildContextHistory(contextConfig);
 
+  // CONFLICT RESOLVED: Used main's improved system prompt with better structure
   const systemPrompt = `
-You are a shell command generator. Convert natural language into precise shell commands.
-
-RULES:
-- Output ONLY the shell command, nothing else
-- No explanations, quotes, backticks, or extra text
-- Command should be directly executable
-- Properly escape special characters when needed
+You live in a developer's CLI, helping them convert natural language into CLI commands. 
+Based on the description of the command given, generate the command. Output only the command and nothing else. 
+Make sure to escape characters when appropriate. The result of \`${lsCommand}\` is given with the command. 
+This may be helpful depending on the description given. Do not include any other text in your response, except for the command.
+Do not wrap the command in quotes.
 
 --- ENVIRONMENT CONTEXT ---
 ${envContext}
 --- END ENVIRONMENT CONTEXT ---
 
-Current directory contents:
+Result of \`${lsCommand}\` in working directory:
 ${lsResult}
 ${historyContext}`;
 
-  if (!config.apiKey) {
-    console.error("Error: API key not found.");
-    console.error("Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable.");
-    process.exit(1);
-  }
+  switch (config.type) {
+    case "OpenAI":
+    case "Custom": {
+      if (!config.apiKey) {
+        console.error("Error: API key not found.");
+        console.error("Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable.");
+        process.exit(1);
+      }
 
       const openai = new OpenAI({
         apiKey: config.apiKey,
@@ -301,7 +368,11 @@ ${historyContext}`;
         model: config.model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Command description: ${commandDescription}` },
+          // CONFLICT RESOLVED: Used main's format with "Command description:" prefix
+          {
+            role: "user",
+            content: `Command description: ${commandDescription}`,
+          },
         ],
       });
       const raw = response?.choices?.[0]?.message?.content ?? "";
@@ -321,7 +392,11 @@ ${historyContext}`;
         system: systemPrompt,
         max_tokens: 1024,
         messages: [
-          { role: "user", content: `Command description: ${commandDescription}` },
+          // CONFLICT RESOLVED: Used main's format with "Command description:" prefix
+          {
+            role: "user",
+            content: `Command description: ${commandDescription}`,
+          },
         ],
       });
       // @ts-ignore
@@ -348,16 +423,53 @@ ${historyContext}`;
       return sanitizeResponse(String(raw));
     }
 
+    // CONFLICT RESOLVED: Added GitHub provider from main branch
+    case "GitHub": {
+      if (!config.apiKey) {
+        console.error("Error: API key not found.");
+        console.error("Please provide an API key in your config.json file.");
+        process.exit(1);
+      }
+
+      const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
+      const model = config.model ? config.model : "openai/gpt-4.1-nano";
+      const github = ModelClient(
+        endpoint,
+        new AzureKeyCredential(config.apiKey)
+      );
+
+      const response = await github.path("/chat/completions").post({
+        body: {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Command description: ${commandDescription}` },
+          ],
+          temperature: 1.0,
+          top_p: 1.0,
+          model: model,
+        },
+      });
+
+      if (isUnexpected(response)) {
+        throw response.body.error;
+      }
+
+      const content = response.body.choices?.[0]?.message?.content;
+      return sanitizeResponse(String(content || ""));
+    }
+
+    // CONFLICT RESOLVED: Added LlamaCpp provider from feature branch with sanitizeResponse
     case "LlamaCpp": {
       const serverManager = LlamaCppServerManager.getInstance();
       await serverManager.startServer(config);
       
       const messages: Message[] = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: commandDescription }
+        { role: 'user', content: `Command description: ${commandDescription}` }
       ];
       
-      return await serverManager.generateCompletion(messages);
+      const raw = await serverManager.generateCompletion(messages);
+      return sanitizeResponse(String(raw));
     }
 
     default:
