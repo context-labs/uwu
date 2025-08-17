@@ -425,11 +425,11 @@ ${historyContext}`;
 
     // CONFLICT RESOLVED: Combined GitHub provider - API key check from feature + main logic
     case "GitHub": {
-      if (!config.apiKey) {
-        console.error("Error: API key not found.");
-        console.error("Please provide an API key in your config.json file.");
-        process.exit(1);
-      }
+      // if (!config.apiKey) {
+      //   console.error("Error: API key not found.");
+      //   console.error("Please provide an API key in your config.json file.");
+      //   process.exit(1);
+      // }
 
       const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
       const model = config.model ? config.model : "openai/gpt-4.1-nano";
