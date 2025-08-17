@@ -14,12 +14,6 @@ import type { ContextConfig } from "./context";
 // CONFLICT RESOLVED: Combined all provider types (GitHub from main + LlamaCpp from feature)
 type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "GitHub" | "LlamaCpp";
 
-// CONFLICT RESOLVED: Added Message interface from feature branch (needed for LlamaCpp)
-interface Message {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
 interface Config {
   type: ProviderType;
   apiKey?: string;
@@ -35,7 +29,11 @@ interface Config {
   threads?: number;
   port?: number;
 }
-
+// CONFLICT RESOLVED: Added Message interface from feature branch (needed for LlamaCpp)
+interface Message {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
 const DEFAULT_CONFIG: Config = {
   type: "OpenAI",
   model: "gpt-4.1",
@@ -423,14 +421,8 @@ ${historyContext}`;
       return sanitizeResponse(String(raw));
     }
 
-    // CONFLICT RESOLVED: Combined GitHub provider - API key check from feature + main logic
+    // CONFLICT RESOLVED
     case "GitHub": {
-      // if (!config.apiKey) {
-      //   console.error("Error: API key not found.");
-      //   console.error("Please provide an API key in your config.json file.");
-      //   process.exit(1);
-      // }
-
       const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
       const model = config.model ? config.model : "openai/gpt-4.1-nano";
       const github = ModelClient(
@@ -455,7 +447,7 @@ ${historyContext}`;
       }
 
       const content = response.body.choices?.[0]?.message?.content;
-      return sanitizeResponse(String(content || ""));
+      return content?.trim() || "";
     }
 
     // CONFLICT RESOLVED: Added LlamaCpp provider from feature branch with proper sanitization
