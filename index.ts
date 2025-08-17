@@ -3,15 +3,16 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
 import { AzureKeyCredential } from '@azure/core-auth';
-import { $ } from "bun";
-import os from "os";
-import fs from "fs";
-import path from "path";
-import envPaths from "env-paths";
-import { DEFAULT_CONTEXT_CONFIG, buildContextHistory } from "./context";
-import type { ContextConfig } from "./context";
+import { $ } from 'bun';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import envPaths from 'env-paths';
+import { DEFAULT_CONTEXT_CONFIG, buildContextHistory } from './context';
+import type { ContextConfig } from './context';
+import unrealConfig from './providers/unreal';
 
-type ProviderType = "OpenAI" | "Custom" | "Claude" | "Gemini" | "GitHub";
+type ProviderType = 'OpenAI' | 'Custom' | 'Claude' | 'Gemini' | 'GitHub';
 
 interface Config {
   type: ProviderType;
@@ -22,44 +23,36 @@ interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  type: "OpenAI",
-  model: "gpt-4.1",
+  type: 'OpenAI',
+  model: 'gpt-4.1',
   context: DEFAULT_CONTEXT_CONFIG,
 };
 
 function getConfig(): Config {
-  const paths = envPaths("uwu", { suffix: "" });
-  const configPath = path.join(paths.config, "config.json");
+  const paths = envPaths('uwu', { suffix: '' });
+  const configPath = path.join(paths.config, 'config.json');
 
   if (!fs.existsSync(configPath)) {
     try {
       // If the config file doesn't exist, create it with defaults.
       fs.mkdirSync(paths.config, { recursive: true });
-      const defaultConfigToFile = {
-        ...DEFAULT_CONFIG,
-        apiKey: "",
-        baseURL: null,
-      };
-      fs.writeFileSync(
-        configPath,
-        JSON.stringify(defaultConfigToFile, null, 2)
-      );
+      const defaultConfigToFile = unrealConfig;
+      fs.writeFileSync(configPath, JSON.stringify(defaultConfigToFile, null, 2));
 
       // For this first run, use the environment variable for the API key.
       // The newly created file has an empty key, so subsequent runs will also fall back to the env var until the user edits the file.
       return {
         ...DEFAULT_CONFIG,
-        apiKey: process.env.OPENAI_API_KEY,
       };
     } catch (error) {
-      console.error("Error creating the configuration file at:", configPath);
-      console.error("Please check your permissions for the directory.");
+      console.error('Error creating the configuration file at:', configPath);
+      console.error('Please check your permissions for the directory.');
       process.exit(1);
     }
   }
 
   try {
-    const rawConfig = fs.readFileSync(configPath, "utf-8");
+    const rawConfig = fs.readFileSync(configPath, 'utf-8');
     const userConfig = JSON.parse(rawConfig);
 
     // Merge user config with defaults, and also check env for API key as a fallback.
@@ -81,11 +74,8 @@ function getConfig(): Config {
 
     return mergedConfig;
   } catch (error) {
-    console.error(
-      "Error reading or parsing the configuration file at:",
-      configPath
-    );
-    console.error("Please ensure it is a valid JSON file.");
+    console.error('Error reading or parsing the configuration file at:', configPath);
+    console.error('Please ensure it is a valid JSON file.');
     process.exit(1);
   }
 }
@@ -93,21 +83,18 @@ function getConfig(): Config {
 const config = getConfig();
 
 // The rest of the arguments are the command description
-const commandDescription = process.argv.slice(2).join(" ").trim();
+const commandDescription = process.argv.slice(2).join(' ').trim();
 
 if (!commandDescription) {
-  console.error("Error: No command description provided.");
-  console.error("Usage: uwu <command description>");
+  console.error('Error: No command description provided.');
+  console.error('Usage: uwu <command description>');
   process.exit(1);
 }
 
 function sanitizeResponse(content: string): string {
-  if (!content) return "";
+  if (!content) return '';
 
-  content = content.replace(
-    /<\s*think\b[^>]*>[\s\S]*?<\s*\/\s*think\s*>/gi,
-    ""
-  );
+  content = content.replace(/<\s*think\b[^>]*>[\s\S]*?<\s*\/\s*think\s*>/gi, '');
 
   let lastCodeBlock: string | null = null;
   const codeBlockRegex = /```(?:[^\n]*)\n([\s\S]*?)```/g;
@@ -118,14 +105,14 @@ function sanitizeResponse(content: string): string {
   if (lastCodeBlock) {
     content = lastCodeBlock;
   } else {
-    content = content.replace(/`/g, "");
+    content = content.replace(/`/g, '');
   }
 
   const lines = content
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map(l => l.trim())
     .filter(Boolean);
-  if (lines.length === 0) return "";
+  if (lines.length === 0) return '';
 
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
@@ -141,14 +128,11 @@ function sanitizeResponse(content: string): string {
   return lines[lines.length - 1].trim();
 }
 
-async function generateCommand(
-  config: Config,
-  commandDescription: string
-): Promise<string> {
+async function generateCommand(config: Config, commandDescription: string): Promise<string> {
   const envContext = `
 Operating System: ${os.type()} ${os.release()} (${os.platform()} - ${os.arch()})
 Node.js Version: ${process.version}
-Shell: ${process.env.SHELL || "unknown"}
+Shell: ${process.env.SHELL || 'unknown'}
 Current Working Directory: ${process.cwd()}
 Home Directory: ${os.homedir()}
 CPU Info: ${os.cpus()[0]?.model} (${os.cpus().length} cores)
@@ -157,19 +141,19 @@ Free Memory: ${(os.freemem() / 1024 / 1024).toFixed(0)} MB
 `;
 
   // Get directory listing (`ls` on Unix, `dir` on Windows)
-  let lsResult = "";
-  let lsCommand = "";
+  let lsResult = '';
+  let lsCommand = '';
   try {
-    if (process.platform === "win32") {
+    if (process.platform === 'win32') {
       // Use PowerShell-compatible dir for a simple listing
-      lsCommand = "dir /b";
+      lsCommand = 'dir /b';
       lsResult = await $`cmd /c ${lsCommand}`.text();
     } else {
-      lsCommand = "ls";
+      lsCommand = 'ls';
       lsResult = await $`${lsCommand}`.text();
     }
   } catch (error) {
-    lsResult = "Unable to get directory listing";
+    lsResult = 'Unable to get directory listing';
   }
 
   // Build command history context if enabled
@@ -193,16 +177,16 @@ ${lsResult}
 ${historyContext}`;
 
   if (!config.apiKey) {
-    console.error("Error: API key not found.");
+    console.error('Error: API key not found.');
     console.error(
-      "Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable."
+      'Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable.'
     );
     process.exit(1);
   }
 
   switch (config.type) {
-    case "OpenAI":
-    case "Custom": {
+    case 'OpenAI':
+    case 'Custom': {
       const openai = new OpenAI({
         apiKey: config.apiKey,
         baseURL: config.baseURL,
@@ -210,18 +194,18 @@ ${historyContext}`;
       const response = await openai.chat.completions.create({
         model: config.model,
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: 'system', content: systemPrompt },
           {
-            role: "user",
+            role: 'user',
             content: `Command description: ${commandDescription}`,
           },
         ],
       });
-      const raw = response?.choices?.[0]?.message?.content ?? "";
+      const raw = response?.choices?.[0]?.message?.content ?? '';
       return sanitizeResponse(String(raw));
     }
 
-    case "Claude": {
+    case 'Claude': {
       const anthropic = new Anthropic({ apiKey: config.apiKey });
       const response = await anthropic.messages.create({
         model: config.model,
@@ -229,20 +213,18 @@ ${historyContext}`;
         max_tokens: 1024,
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: `Command description: ${commandDescription}`,
           },
         ],
       });
       // @ts-ignore
       const raw =
-        response.content && response.content[0]
-          ? response.content[0].text
-          : response?.text ?? "";
+        response.content && response.content[0] ? response.content[0].text : response?.text ?? '';
       return sanitizeResponse(String(raw));
     }
 
-    case "Gemini": {
+    case 'Gemini': {
       const genAI = new GoogleGenerativeAI(config.apiKey);
       const model = genAI.getGenerativeModel({ model: config.model });
       const prompt = `${systemPrompt}\n\nCommand description: ${commandDescription}`;
@@ -252,19 +234,19 @@ ${historyContext}`;
       return sanitizeResponse(String(raw));
     }
 
-    case "GitHub": {
-      const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
-      const model = config.model ? config.model : "openai/gpt-4.1-nano";
-      const github = ModelClient(
-        endpoint,
-        new AzureKeyCredential(config.apiKey)
-      );
+    case 'GitHub': {
+      const endpoint = config.baseURL ? config.baseURL : 'https://models.github.ai/inference';
+      const model = config.model ? config.model : 'openai/gpt-4.1-nano';
+      const github = ModelClient(endpoint, new AzureKeyCredential(config.apiKey));
 
-      const response = await github.path("/chat/completions").post({
+      const response = await github.path('/chat/completions').post({
         body: {
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Command description: ${commandDescription}` },
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: `Command description: ${commandDescription}`,
+            },
           ],
           temperature: 1.0,
           top_p: 1.0,
@@ -277,13 +259,11 @@ ${historyContext}`;
       }
 
       const content = response.body.choices?.[0]?.message?.content;
-      return content?.trim() || "";
+      return content?.trim() || '';
     }
 
     default:
-      console.error(
-        `Error: Unknown provider type "${config.type}" in config.json.`
-      );
+      console.error(`Error: Unknown provider type "${config.type}" in config.json.`);
       process.exit(1);
   }
 }
@@ -293,6 +273,6 @@ try {
   const command = await generateCommand(config, commandDescription);
   console.log(command);
 } catch (error: any) {
-  console.error("Error generating command:", error.message);
+  console.error('Error generating command:', error.message);
   process.exit(1);
 }
