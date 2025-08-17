@@ -423,7 +423,7 @@ ${historyContext}`;
       return sanitizeResponse(String(raw));
     }
 
-    // CONFLICT RESOLVED: Added GitHub provider from main branch
+    // CONFLICT RESOLVED: Combined GitHub provider - API key check from feature + main logic
     case "GitHub": {
       if (!config.apiKey) {
         console.error("Error: API key not found.");
@@ -458,7 +458,7 @@ ${historyContext}`;
       return sanitizeResponse(String(content || ""));
     }
 
-    // CONFLICT RESOLVED: Added LlamaCpp provider from feature branch with sanitizeResponse
+    // CONFLICT RESOLVED: Added LlamaCpp provider from feature branch with proper sanitization
     case "LlamaCpp": {
       const serverManager = LlamaCppServerManager.getInstance();
       await serverManager.startServer(config);
