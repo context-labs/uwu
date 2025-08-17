@@ -421,7 +421,6 @@ ${historyContext}`;
       return sanitizeResponse(String(raw));
     }
 
-    // CONFLICT RESOLVED
     case "GitHub": {
       const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
       const model = config.model ? config.model : "openai/gpt-4.1-nano";
