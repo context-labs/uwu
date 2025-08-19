@@ -8,6 +8,16 @@ import os from "os";
 import type { Config } from "./types";
 import { buildContextHistory, DEFAULT_CONTEXT_CONFIG } from "../context";
 
+const lastMatched = (regex: RegExp, content: string) => {
+  let lastOne;
+  let matched;
+  while ((matched = regex.exec(content))) {
+    lastOne = matched[1];
+  }
+
+  return lastOne;
+};
+
 function sanitizeResponse(content: string): string {
   if (!content) return "";
 
@@ -16,15 +26,11 @@ function sanitizeResponse(content: string): string {
     ""
   );
 
-  let lastCodeBlock: string | undefined;
-  // TODO: Move to last matched function
   const codeBlockRegex = /```(?:[^\n]*)\n([\s\S]*?)```/g;
-  let match;
-  while ((match = codeBlockRegex.exec(strippedContent)) !== null) {
-    lastCodeBlock = match[1];
-  }
 
-  strippedContent = lastCodeBlock || strippedContent.replace(/`/g, "");
+  strippedContent =
+    lastMatched(codeBlockRegex, strippedContent) ||
+    strippedContent.replace(/`/g, "");
 
   const lines = strippedContent
     .split(/\r?\n/)
