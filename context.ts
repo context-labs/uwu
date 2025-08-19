@@ -1,11 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-
-export interface ContextConfig {
-  enabled?: boolean;
-  maxHistoryCommands?: number;
-}
+import type { ContextConfig } from "./src/types";
 
 export const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
   enabled: false,
