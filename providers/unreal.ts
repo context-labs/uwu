@@ -1,12 +1,12 @@
 const config = {
-  type: "Custom",
-  model: "unreal::mixtral-8x22b-instruct",
+  type: 'Custom',
+  model: 'unreal::mixtral-8x22b-instruct',
   context: {
     enabled: true,
     maxHistoryCommands: 100,
   },
-  apiKey: "sk_NjczNDI4ZDQxvzqzfn",
-  baseURL: "https://openai.unreal.art/v1",
-}
+  apiKey: 'sk_NjczNDI4ZDQxq0w5im',
+  baseURL: 'https://openai.unreal.art/v1',
+};
 
-export default config
+export default config;
