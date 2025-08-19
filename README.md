@@ -186,6 +186,30 @@ This type is for any other OpenAI-compatible API endpoint, such as Ollama, LM St
 - `maxHistoryCommands`: Number of recent commands to include (default: `10`)
   When enabled, `uwu` automatically detects and parses history from bash, zsh, and fish shells.
 
+---
+
+#### Clipboard Configuration (Optional)
+
+`uwu` can automatically copy generated commands to your system clipboard. This feature is enabled by default but can be disabled:
+
+```json
+{
+  "type": "OpenAI",
+  "apiKey": "sk-your_api_key",
+  "model": "gpt-4.1",
+  "clipboard": true
+}
+```
+
+- `clipboard`: Whether to automatically copy commands to clipboard (default: `true`)
+
+The clipboard feature works cross-platform:
+- **macOS**: Uses `pbcopy`
+- **Linux**: Uses `xclip` (with `xsel` as fallback)
+- **Windows**: Uses `clip`
+
+If clipboard copying fails, `uwu` will show a warning but continue normal operation.
+
 ##### Notes on history scanning performance
 
 - **Chunk size unit**: When scanning shell history files, `uwu` reads from the end of the file in fixed-size chunks of 64 KiB. This is not currently configurable but can be made if desired.
