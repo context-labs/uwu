@@ -11,47 +11,56 @@ import { buildContextHistory, DEFAULT_CONTEXT_CONFIG } from "../context";
 function sanitizeResponse(content: string): string {
   if (!content) return "";
 
-  content = content.replace(
+  let strippedContent = content.replace(
     /<\s*think\b[^>]*>[\s\S]*?<\s*\/\s*think\s*>/gi,
     ""
   );
 
-  let lastCodeBlock: string | null = null;
+  let lastCodeBlock: string | undefined;
+  // TODO: Move to last matched function
   const codeBlockRegex = /```(?:[^\n]*)\n([\s\S]*?)```/g;
-  let m;
-  while ((m = codeBlockRegex.exec(content)) !== null) {
-    lastCodeBlock = m[1];
-  }
-  if (lastCodeBlock) {
-    content = lastCodeBlock;
-  } else {
-    content = content.replace(/`/g, "");
+  let match;
+  while ((match = codeBlockRegex.exec(strippedContent)) !== null) {
+    lastCodeBlock = match[1];
   }
 
-  const lines = content
+  strippedContent = lastCodeBlock || strippedContent.replace(/`/g, "");
+
+  const lines = strippedContent
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
+
   if (lines.length === 0) return "";
 
   for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     const looksLikeSentence =
       /^[A-Z][\s\S]*[.?!]$/.test(line) ||
       /\b(user|want|should|shouldn't|think|explain|error|note)\b/i.test(line);
+
     if (!looksLikeSentence && line.length <= 2000) {
       return line.trim();
     }
   }
 
-  return lines[lines.length - 1].trim();
+  return lines.at(-1)!.trim();
 }
 
 export async function generateCommand(
   config: Config,
   commandDescription: string
 ): Promise<string> {
+  // Exiting as fast as possible
+  if (!config.apiKey) {
+    console.error("Error: API key not found.");
+    console.error(
+      "Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable."
+    );
+    process.exit(1);
+  }
+
   const envContext = `
 Operating System: ${os.type()} ${os.release()} (${os.platform()} - ${os.arch()})
 Node.js Version: ${process.version}
@@ -99,14 +108,6 @@ Result of \`${lsCommand}\` in working directory:
 ${lsResult}
 ${historyContext}`;
 
-  if (!config.apiKey) {
-    console.error("Error: API key not found.");
-    console.error(
-      "Please provide an API key in your config.json file or by setting the OPENAI_API_KEY environment variable."
-    );
-    process.exit(1);
-  }
-
   switch (config.type) {
     case "OpenAI":
     case "Custom": {
@@ -141,11 +142,10 @@ ${historyContext}`;
           },
         ],
       });
+
       // @ts-ignore
-      const raw =
-        response.content && response.content[0]
-          ? response.content[0].text
-          : response?.text ?? "";
+      const raw = response.content?.[0]?.text ?? response?.text ?? "";
+
       return sanitizeResponse(String(raw));
     }
 
@@ -156,6 +156,7 @@ ${historyContext}`;
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const raw = await response.text();
+
       return sanitizeResponse(String(raw));
     }
 
