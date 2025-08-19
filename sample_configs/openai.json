@@ -1,5 +1,6 @@
 {
   "type": "OpenAI",
   "apiKey": "sk-your_openai_api_key",
-  "model": "gpt-4.1"
+  "model": "gpt-4.1",
+  "clipboard": true
 }

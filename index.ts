@@ -1,8 +1,8 @@
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
-import { AzureKeyCredential } from '@azure/core-auth';
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
+import { AzureKeyCredential } from "@azure/core-auth";
 import { $ } from "bun";
 import os from "os";
 import fs from "fs";
@@ -19,12 +19,14 @@ interface Config {
   model: string;
   baseURL?: string;
   context?: ContextConfig;
+  clipboard?: boolean;
 }
 
 const DEFAULT_CONFIG: Config = {
   type: "OpenAI",
   model: "gpt-4.1",
   context: DEFAULT_CONTEXT_CONFIG,
+  clipboard: true,
 };
 
 function getConfig(): Config {
@@ -39,6 +41,7 @@ function getConfig(): Config {
         ...DEFAULT_CONFIG,
         apiKey: "",
         baseURL: null,
+        clipboard: true,
       };
       fs.writeFileSync(
         configPath,
@@ -123,7 +126,7 @@ function sanitizeResponse(content: string): string {
 
   const lines = content
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map(l => l.trim())
     .filter(Boolean);
   if (lines.length === 0) return "";
 
@@ -139,6 +142,49 @@ function sanitizeResponse(content: string): string {
   }
 
   return lines[lines.length - 1].trim();
+}
+
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    if (process.platform === "darwin") {
+      // macOS
+      const proc = Bun.spawn(["pbcopy"], {
+        stdin: "pipe",
+      });
+      proc.stdin.write(text);
+      proc.stdin.end();
+      await proc.exited;
+    } else if (process.platform === "linux") {
+      // Linux - try xclip first, then xsel as fallback
+      try {
+        const proc = Bun.spawn(["xclip", "-selection", "clipboard"], {
+          stdin: "pipe",
+        });
+        proc.stdin.write(text);
+        proc.stdin.end();
+        await proc.exited;
+      } catch {
+        const proc = Bun.spawn(["xsel", "--clipboard", "--input"], {
+          stdin: "pipe",
+        });
+        proc.stdin.write(text);
+        proc.stdin.end();
+        await proc.exited;
+      }
+    } else if (process.platform === "win32") {
+      // Windows
+      const proc = Bun.spawn(["clip"], {
+        stdin: "pipe",
+      });
+      proc.stdin.write(text);
+      proc.stdin.end();
+      await proc.exited;
+    } else {
+      console.error("Warning: Clipboard not supported on this platform");
+    }
+  } catch (error) {
+    console.error("Warning: Failed to copy to clipboard:", error.message);
+  }
 }
 
 async function generateCommand(
@@ -178,9 +224,9 @@ Free Memory: ${(os.freemem() / 1024 / 1024).toFixed(0)} MB
 
   // System prompt
   const systemPrompt = `
-You live in a developer's CLI, helping them convert natural language into CLI commands. 
-Based on the description of the command given, generate the command. Output only the command and nothing else. 
-Make sure to escape characters when appropriate. The result of \`${lsCommand}\` is given with the command. 
+You live in a developer's CLI, helping them convert natural language into CLI commands.
+Based on the description of the command given, generate the command. Output only the command and nothing else.
+Make sure to escape characters when appropriate. The result of \`${lsCommand}\` is given with the command.
 This may be helpful depending on the description given. Do not include any other text in your response, except for the command.
 Do not wrap the command in quotes.
 
@@ -238,7 +284,7 @@ ${historyContext}`;
       const raw =
         response.content && response.content[0]
           ? response.content[0].text
-          : response?.text ?? "";
+          : (response?.text ?? "");
       return sanitizeResponse(String(raw));
     }
 
@@ -253,7 +299,9 @@ ${historyContext}`;
     }
 
     case "GitHub": {
-      const endpoint = config.baseURL ? config.baseURL : "https://models.github.ai/inference";
+      const endpoint = config.baseURL
+        ? config.baseURL
+        : "https://models.github.ai/inference";
       const model = config.model ? config.model : "openai/gpt-4.1-nano";
       const github = ModelClient(
         endpoint,
@@ -264,7 +312,10 @@ ${historyContext}`;
         body: {
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Command description: ${commandDescription}` },
+            {
+              role: "user",
+              content: `Command description: ${commandDescription}`,
+            },
           ],
           temperature: 1.0,
           top_p: 1.0,
@@ -291,6 +342,12 @@ ${historyContext}`;
 // --- Main Execution ---
 try {
   const command = await generateCommand(config, commandDescription);
+
+  // Copy to clipboard if enabled
+  if (config.clipboard !== false) {
+    await copyToClipboard(command);
+  }
+
   console.log(command);
 } catch (error: any) {
   console.error("Error generating command:", error.message);

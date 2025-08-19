@@ -1,6 +1,7 @@
 {
-  "type": "GitHub",
-  "apiKey": "your-github-token",
-  "model": "model-available-at-https://github.com/marketplace/models/",
-  "baseURL": "https://models.github.ai/inference"
+    "type": "GitHub",
+    "apiKey": "your-github-token",
+    "model": "model-available-at-https://github.com/marketplace/models/",
+    "baseURL": "https://models.github.ai/inference",
+    "clipboard": true
 }
