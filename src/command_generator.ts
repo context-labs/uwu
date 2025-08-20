@@ -8,7 +8,7 @@ import os from "os";
 import type { Config } from "./types";
 import { buildContextHistory, DEFAULT_CONTEXT_CONFIG } from "../context";
 
-const lastMatched = (regex: RegExp, content: string) => {
+export const lastMatched = (regex: RegExp, content: string) => {
   let lastOne;
   let matched;
   while ((matched = regex.exec(content))) {
@@ -18,7 +18,7 @@ const lastMatched = (regex: RegExp, content: string) => {
   return lastOne;
 };
 
-const findLastCommand = (lines: string[]) => {
+export const findLastCommand = (lines: string[]) => {
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]!;
 
@@ -31,10 +31,10 @@ const findLastCommand = (lines: string[]) => {
     }
   }
 
-  return lines.at(-1)!.trim();
+  return lines.at(-1)?.trim() || "";
 };
 
-function sanitizeResponse(content: string): string {
+export function sanitizeResponse(content: string): string {
   if (!content) return "";
 
   let strippedContent = content.replace(
@@ -53,7 +53,7 @@ function sanitizeResponse(content: string): string {
     .map((l) => l.trim())
     .filter(Boolean);
 
-  return lines.length !== 0 ? findLastCommand(lines) : "";
+  return findLastCommand(lines);
 }
 
 export async function generateCommand(

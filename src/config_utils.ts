@@ -10,7 +10,7 @@ const DEFAULT_CONFIG: Config = {
   context: DEFAULT_CONTEXT_CONFIG,
 };
 
-const createConfigFile = (paths: Paths, configPath: string) => {
+export const createConfigFile = (paths: Paths, configPath: string) => {
   try {
     fs.mkdirSync(paths.config, { recursive: true });
     const defaultConfigToFile = {
@@ -18,12 +18,18 @@ const createConfigFile = (paths: Paths, configPath: string) => {
       apiKey: "",
       baseURL: null,
     };
+
     fs.writeFileSync(configPath, JSON.stringify(defaultConfigToFile, null, 2));
   } catch (error) {
     console.error("Error creating the configuration file at:", configPath);
     console.error("Please check your permissions for the directory.");
     process.exit(1);
   }
+};
+
+export const readJson = (path: string) => {
+  const fileContent = fs.readFileSync(path, "utf-8");
+  return JSON.parse(fileContent);
 };
 
 export function getConfig(): Config {
@@ -34,8 +40,6 @@ export function getConfig(): Config {
   if (!doesConfigFileExist) {
     createConfigFile(paths, configPath);
 
-    // For this first run, use the environment variable for the API key.
-    // The newly created file has an empty key, so subsequent runs will also fall back to the env var until the user edits the file.
     return {
       ...DEFAULT_CONFIG,
       apiKey: process.env.OPENAI_API_KEY,
@@ -43,8 +47,7 @@ export function getConfig(): Config {
   }
 
   try {
-    const rawConfig = fs.readFileSync(configPath, "utf-8");
-    const userConfig = JSON.parse(rawConfig);
+    const userConfig = readJson(configPath);
 
     // Merge user config with defaults, and also check env for API key as a fallback.
     const mergedConfig = {
