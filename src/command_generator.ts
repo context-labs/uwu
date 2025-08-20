@@ -18,6 +18,22 @@ const lastMatched = (regex: RegExp, content: string) => {
   return lastOne;
 };
 
+const findLastCommand = (lines: string[]) => {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]!;
+
+    const looksLikeSentence =
+      /^[A-Z][\s\S]*[.?!]$/.test(line) ||
+      /\b(user|want|should|shouldn't|think|explain|error|note)\b/i.test(line);
+
+    if (!looksLikeSentence && line.length <= 2000) {
+      return line.trim();
+    }
+  }
+
+  return lines.at(-1)!.trim();
+};
+
 function sanitizeResponse(content: string): string {
   if (!content) return "";
 
@@ -37,21 +53,7 @@ function sanitizeResponse(content: string): string {
     .map((l) => l.trim())
     .filter(Boolean);
 
-  if (lines.length === 0) return "";
-
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]!;
-
-    const looksLikeSentence =
-      /^[A-Z][\s\S]*[.?!]$/.test(line) ||
-      /\b(user|want|should|shouldn't|think|explain|error|note)\b/i.test(line);
-
-    if (!looksLikeSentence && line.length <= 2000) {
-      return line.trim();
-    }
-  }
-
-  return lines.at(-1)!.trim();
+  return lines.length !== 0 ? findLastCommand(lines) : "";
 }
 
 export async function generateCommand(
