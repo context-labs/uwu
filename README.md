@@ -62,7 +62,7 @@ This will produce the `uwu-cli` binary in the `dist/` build output directory.
 
 ```bash
 chmod +x dist/uwu-cli
-mv dist/uwu-cli /usr/local/bin/uwu-cli
+mv dist/uwu-cli /usr/local/bin/uwu
 ```
 
 ### 4. Configuration
@@ -125,7 +125,7 @@ Uses the native Google Gemini API.
 {
   "type": "Gemini",
   "apiKey": "your-google-api-key",
-  "model": "gemini-pro"
+  "model": "gemini-2.5-pro"
 }
 ```
 
